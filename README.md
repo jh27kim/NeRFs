@@ -1,1 +1,3 @@
 # NeRFs
+
+Vanilla NeRF 
