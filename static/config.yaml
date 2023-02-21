@@ -1,0 +1,7 @@
+config:
+  - model: nerf
+  - cuda: default
+  - data: nerf_llff
+  - network: nerf
+  - train: nerf
+  - log: debug

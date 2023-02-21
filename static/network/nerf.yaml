@@ -1,0 +1,5 @@
+pos_dim: 3
+pos_encoding: 10
+view_dir_dim: 3
+view_dir_encoding: 4
+include_input: True

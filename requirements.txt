@@ -1,0 +1,17 @@
+certifi==2019.11.28
+chardet==3.0.4
+dbus-python==1.2.16
+distro==1.4.0
+distro-info===0.23ubuntu1
+idna==2.8
+imageio==2.25.1
+numpy==1.24.2
+Pillow==9.4.0
+PyGObject==3.36.0
+python-apt==2.0.1
+requests==2.22.0
+requests-unixsocket==0.2.0
+six==1.14.0
+ssh-import-id==5.10
+unattended-upgrades==0.1
+urllib3==1.25.8
