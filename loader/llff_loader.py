@@ -16,7 +16,7 @@ from typing import Callable, Dict, Optional, Tuple, Union
 
 
 class LLFFDataset(data.Dataset):
-    def __init__(self, root_dir, scene_name, factor, recenter, bd_factor, spherify):
+    def __init__(self, root_dir, logger, scene_name, factor, recenter, bd_factor, spherify):
         scene_names = ["fern", "flower", "fortress", "horns", "leaves", "orchids", "room", "trex"]
         if not scene_name in scene_names:
             raise ValueError(
@@ -38,6 +38,7 @@ class LLFFDataset(data.Dataset):
             self._idx_test,
         ) = load_llff_data(
             self._root_dir,
+            logger,
             factor=factor,
             recenter=recenter,
             bd_factor=bd_factor,
@@ -535,6 +536,7 @@ def spherify_poses(
 
 def load_llff_data(
     base_dir: str,
+    logger,
     factor: int = 8,
     recenter: bool = True,
     bd_factor: float = 0.75,
@@ -634,7 +636,7 @@ def load_llff_data(
     
     dists = np.sum(np.square(avg_camera_to_world[:3, 3] - extrinsics[:, :3, 3]), -1)
     i_test = int(np.argmin(dists))
-    print("HOLDOUT view is", i_test)
+    logger.info(f"Total test view: {i_test}")
 
     imgs = imgs.astype(np.float32)
     extrinsics = extrinsics.astype(np.float32)

@@ -10,15 +10,6 @@ class NeRF(Master):
     def __init__(self, cfg, logger):
         self.cfg = cfg
         self.logger = logger
-        self.enc_fn, self.enc_pos_dim, self.enc_dir_dim = self.encode_input()
-        self.model = Nerf(self.cfg, self.enc_pos_dim, self.enc_dir_dim)
-
-        super().__init__(cfg)
-
-    def encode_input(self):
-        # TODO
-        # Positional encoding
+        super().__init__()
         
-
-        return None, 60, 24
-    
+        self.model = Nerf(self.cfg, self.pos_encoder.get_out_dim(), self.dir_encoder.get_out_dim())

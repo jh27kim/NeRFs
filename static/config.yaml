@@ -13,4 +13,4 @@ test: false
 hydra:  
   output_subdir: null  
   run:  
-    dir: ./logs
+    dir: ./logsgit
