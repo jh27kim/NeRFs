@@ -2,7 +2,9 @@ pos_depth: 8
 pos_width: 256
 
 view_dir_depth: 1
-view_dir_width: 256
+view_dir_width: 128
+
+skip_layer: 4
 
 model: nerf
 
