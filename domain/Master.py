@@ -3,6 +3,8 @@ import torch.utils.data as data
 
 from loader.llff_loader import LLFFDataset
 from encoder.positional_encoder import PositionalEncoder
+from sampler.strafied_sampler import StratifiedSampler
+from renderer.quadrature_integrator import QuadratureIntegrator
 
 
 class Master():
@@ -10,6 +12,17 @@ class Master():
         self.initialize()
         self.load_data()
         self.encode_input()
+        
+        if self.cfg.sampler.sampler_type == "stratified":
+            self.sampler = StratifiedSampler()
+        else:
+            raise NotImplementedError("Sampler not implemented. ", self.cfg.sampler.sampler_type)
+        
+        if self.cfg.rendering.renderer_type == "quadrature":
+            self.renderer = QuadratureIntegrator()
+        else:
+            raise NotImplementedError("Renderer not implemented. ", self.cfg.rendering.renderer_type)
+
     
     def initialize(self):
         if torch.cuda.is_available():

@@ -5,6 +5,7 @@ defaults:
   - train: nerf
   - rendering: nerf
   - encoding: positional
+  - sampler: stratified_sampler
 
 cuda: 0
 log: debug

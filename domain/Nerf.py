@@ -11,5 +11,6 @@ class NeRF(Master):
         self.cfg = cfg
         self.logger = logger
         super().__init__()
-        
+
         self.model = Nerf(self.cfg, self.pos_encoder.get_out_dim(), self.dir_encoder.get_out_dim())
+        
