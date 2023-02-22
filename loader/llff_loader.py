@@ -82,7 +82,7 @@ class LLFFDataset(data.Dataset):
         img = self._imgs[index]
         pose = self._poses[index]
 
-        return img, 
+        return img, pose
         
     @property
     def img_height(self) -> int:
@@ -577,7 +577,7 @@ def load_llff_data(
     imgs, extrinsics, intrinsics, z_bounds = _load_data(
         base_dir, factor=factor
     )  # factor = 8 downsamples original imgs by 8x
-    print("Loaded", base_dir, z_bounds.min(), z_bounds.max())
+    logger.info(f"Loaded, {base_dir}, {z_bounds.min()}, {z_bounds.max()}")
 
     # Rescale the scene if bd_factor is provided
     scale = 1.0 if bd_factor is None else 1.0 / (z_bounds.min() * bd_factor)

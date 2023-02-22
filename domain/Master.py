@@ -1,5 +1,6 @@
 import torch
 import torch.utils.data as data
+import numpy as np
 
 from loader.llff_loader import LLFFDataset
 from encoder.positional_encoder import PositionalEncoder
@@ -14,14 +15,15 @@ class Master():
         self.encode_input()
         
         if self.cfg.sampler.sampler_type == "stratified":
-            self.sampler = StratifiedSampler()
+            self.sampler = StratifiedSampler(self.cfg, self.dataset.img_height, self.dataset.img_width, self.dataset.focal_length, self.logger)
         else:
             raise NotImplementedError("Sampler not implemented. ", self.cfg.sampler.sampler_type)
         
         if self.cfg.rendering.renderer_type == "quadrature":
-            self.renderer = QuadratureIntegrator()
+            self.renderer = QuadratureIntegrator(self.logger)
         else:
             raise NotImplementedError("Renderer not implemented. ", self.cfg.rendering.renderer_type)
+        
 
     
     def initialize(self):
@@ -45,6 +47,7 @@ class Master():
         if self.cfg.data.dataset_type == "nerf_llff":
             self.dataset = LLFFDataset(self.cfg.data.data_root, self.logger, scene_name=self.cfg.data.scene_name, factor=self.cfg.data.factor, recenter=self.cfg.data.recenter, bd_factor=self.cfg.data.bd_factor, spherify=self.cfg.data.spherify)
             self.loader = data.DataLoader(self.dataset, batch_size=self.cfg.data.batch_size,shuffle=self.cfg.data.shuffle, num_workers=4)
+
             if self.cfg.rendering.project_to_ndc:
                 self.cfg.rendering.t_near = 0.0
                 self.cfg.rendering.t_far = 1.0
@@ -66,5 +69,9 @@ class Master():
             raise NotImplementedError("Encoding function not implemented. ", self.cfg.encoding.encoding_type)
 
     def run(self):
-        # Train / Test Model
-        pass
+        for _img, _pose in self.loader:
+            img = _img.squeeze()
+            pose = _pose.squeeze()
+
+            self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse)
+            exit(0)
