@@ -1,7 +1,16 @@
-config:
-  - model: nerf
-  - cuda: default
+defaults:
+  - _self_
   - data: nerf_llff
   - network: nerf
   - train: nerf
-  - log: debug
+  - rendering: nerf
+  - encoding: positional
+
+cuda: 0
+log: debug
+test: false
+
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: ./logs

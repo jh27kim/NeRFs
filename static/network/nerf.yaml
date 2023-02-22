@@ -1,5 +1,13 @@
 pos_dim: 3
-pos_encoding: 10
+pos_depth: 8
+pos_width: 256
+
 view_dir_dim: 3
-view_dir_encoding: 4
-include_input: True
+view_dir_depth: 1
+view_dir_width: 256
+
+include_input: true
+model: nerf
+
+rgb_dim: 3
+density_dim: 1
