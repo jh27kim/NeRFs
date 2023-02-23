@@ -71,12 +71,11 @@ class StratifiedSampler():
         ray_o, ray_d = self._cast_rays(ext)
 
         z_near, z_far = z_bound
-        z_bins = torch.linspace(z_near, z_far, num_samples_coarse+1)[:-1]
-
         dist = (z_far - z_near) / num_samples_coarse
 
-        z_samples_coarse = z_bins + (dist * torch.rand_like(z_bins))
-        z_samples_coarse = z_samples_coarse.repeat(ray_o.shape[0], 1)
+        z_bins = torch.linspace(z_near, z_far, num_samples_coarse+1)[:-1]
+        z_samples_coarse = z_bins.repeat(ray_o.shape[0], 1)
+        z_samples_coarse = z_samples_coarse + (dist * torch.rand_like(z_samples_coarse))
 
         if refine:
             if weights is None or num_samples_refine is None:
@@ -102,7 +101,6 @@ class StratifiedSampler():
         ray_d = ray_d.repeat(1, z_samples.shape[1], 1)
 
         z_samples = z_samples.unsqueeze(2)
-
         xyz = ray_o + z_samples * ray_d
 
         self.logger.info(f"Total rays {ray_o.shape[0]}. Sampled {z_samples.shape[1]} points from each ray. Sampled 3D point dimension: {xyz.shape}")
@@ -148,3 +146,6 @@ class StratifiedSampler():
         return samples
 
 
+    @property
+    def get_target_index(self):
+        return self.target_idx

@@ -1,6 +1,7 @@
 import torch
 import torch.utils.data as data
 import numpy as np
+from tqdm import tqdm
 
 from loader.llff_loader import LLFFDataset
 from encoder.positional_encoder import PositionalEncoder
@@ -73,21 +74,15 @@ class Master():
             raise NotImplementedError("Encoding function not implemented. ", self.cfg.encoding.encoding_type)
 
     def run(self):
-        for _img, _pose in self.loader:
+        for _img, _pose in tqdm(self.loader):
             img = _img.squeeze()
             pose = _pose.squeeze()
 
             xyz_coarse, ray_d_coarse, delta_coarse = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse)
             rgb_coarse, weight_coarse, sigma_coarse, radiance_coarse = self.renderer.render_rays(xyz_coarse, ray_d_coarse, delta_coarse, self.model_coarse)
-            
-            exit(0)
-
-            # Unit test
-            if self.cfg.test:
-                weights = torch.rand((self.dataset.img_width * self.dataset.img_height, self.cfg.sampler.num_samples_coarse))
-            else:    
-                weights = torch.rand((self.cfg.sampler.num_pixels, self.cfg.sampler.num_samples_coarse))
 
             if self.cfg.sampler.hierarchial_sampling:
-                xyz_refine, ray_d_refine, delta_refine = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weights, self.cfg.sampler.hierarchial_sampling)
+                xyz_refine, ray_d_refine, delta_refine = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling)
+                rgb_refine, weight_refine, sigma_refine, radiance_refine = self.renderer.render_rays(xyz_refine, ray_d_refine, delta_refine, self.model_refine)
 
+            
