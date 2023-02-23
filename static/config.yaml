@@ -6,12 +6,13 @@ defaults:
   - rendering: nerf
   - encoding: positional
   - sampler: stratified_sampler
+  - logs: default
 
 cuda: 0
-log: debug
-test: false
+test: true
+output: ./output
 
 hydra:  
   output_subdir: null  
   run:  
-    dir: ./logsgit
+    dir: ./logs

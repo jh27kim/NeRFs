@@ -1,7 +1,7 @@
 import hydra
 from logs.create_logger import create_logger
-from domain.Master import Master
 from domain.Nerf import NeRF
+import os
 
 @hydra.main(
     version_base=None,

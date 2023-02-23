@@ -12,13 +12,13 @@ def create_logger(logger_name, cfg):
     if len(logger.handlers) > 0:
         return logger # Logger already exists
     
-    if cfg.log == "debug":
+    if cfg.logs.level == "debug":
         log_level = logging.DEBUG
-    elif cfg.log == "info":
+    elif cfg.logs.level == "info":
         log_level = logging.INFO
-    elif cfg.log == "WARN":
+    elif cfg.logs.level == "WARN":
         log_level = logging.WARN
-    elif cfg.log == "ERROR":
+    elif cfg.logs.level == "ERROR":
         log_level = logging.ERROR
     
     logger.setLevel(log_level)

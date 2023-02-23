@@ -1,16 +1,35 @@
 import torch
 import torch.utils.data as data
-import numpy as np
 from tqdm import tqdm
+import os 
+import torchvision.utils
 
 from loader.llff_loader import LLFFDataset
 from encoder.positional_encoder import PositionalEncoder
 from sampler.strafied_sampler import StratifiedSampler
 from renderer.quadrature_integrator import QuadratureIntegrator
 
+"""
+PyTorch implementation of NeRF (https://arxiv.org/abs/2003.08934)
+
+Most of the implementations inspired from 
+    - https://github.com/DveloperY0115/torch-NeRF/
+    - https://github.com/yenchenlin/nerf-pytorch/
+
+"""
+
 
 class Master():
     def __init__(self):
+        self.log_dir = self.cfg.logs.dir
+        self.ckpt_dir = os.path.join(self.log_dir, self.cfg.data.dataset_type, self.cfg.data.scene_name)
+        if not os.path.exists(self.ckpt_dir):
+            os.makedirs(os.path.join(self.ckpt_dir, self.cfg.data.dataset_type, self.cfg.data.scene_name))
+
+        self.output_dir = os.path.join(self.cfg.output, self.cfg.data.dataset_type, self.cfg.data.scene_name)
+        if not os.path.exists(self.output_dir):
+            os.makedirs(os.path.join(self.output_dir, self.cfg.data.dataset_type, self.cfg.data.scene_name))
+
         self.initialize()
         self.load_data()
         self.encode_input()
@@ -110,8 +129,17 @@ class Master():
     def run(self):
         self.init_optim()
         self.init_loss()
-        # start = self._load_ckpt()
-        start = 0
+        start = self._load_ckpt()
+
+        if self.cfg.test:
+            intrinsics = {"f_x": self.dataset.focal_length, "f_y": self.dataset.focal_length, "img_width": self.dataset.img_width, "img_height": self.dataset.img_height}
+            extrinsics = self.dataset.render_poses
+            img_res = (self.dataset.img_height, self.dataset.img_width)
+            save_dir = os.path.join(self.output_dir, f"/test")
+
+            self._visualize(intrinsics, extrinsics, img_res, save_dir)
+
+            return 0
 
         for epoch in tqdm(range(start, self.cfg.train.optim.num_iter//len(self.dataset))):
             total_loss = 0.
@@ -157,13 +185,96 @@ class Master():
 
             self.logger.info(f"Epoch: {epoch}. Total loss: {total_loss} | Total coarse loss {total_coarse_loss} | Total refine loss {total_refine_loss}")
 
-            # if (epoch + 1) == self.cfg.train.log.epoch_btw_ckpt:
-            #     if self.cfg.sampler.hierarchial_sampling:
-            #         self.save_ckpt(self.model_coarse, self.optimizer, self.scheduler)
-        
+            if (epoch + 1) % self.cfg.train.log.epoch_btw_ckpt == 0:
+                self._save_ckpt(epoch)
 
-    def _save_ckpt(self):
-        pass
+            if (epoch + 1) % self.cfg.train.log.epoch_btw.vis == 0:
+                intrinsics = {"f_x": self.dataset.focal_length, "f_y": self.dataset.focal_length, "img_width": self.dataset.img_width, "img_height": self.dataset.img_height}
+                extrinsics = self.dataset.render_poses
+                img_res = (self.dataset.img_height, self.dataset.img_width)
+                save_dir = os.path.join(self.log_dir, f"vis/epoch_{epoch}")
+
+                self._visualize(intrinsics, extrinsics, img_res, save_dir)
+
+
+    def _visualize(self, intrinsics, extrinsics, img_res, save_dir, num_imgs=None):
+        test_sampler = StratifiedSampler(self.cfg, intrinsics["img_width"], intrinsics["img_height"], intrinsics["f_x"], self.logger)
+        test_renderer = QuadratureIntegrator(self.logger, test_sampler, self.encoder_dict)
+
+        with torch.no_grad():
+            for pose_idx, pose in tqdm(enumerate(extrinsics)):
+                if num_imgs is not None:
+                    if pose_idx >= num_imgs:
+                        break
+
+            img_height, img_width = img_res
+            
+            xyz_coarse, ray_d_coarse, delta_coarse = test_sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse)
+            _, weight_coarse, _, _ = test_renderer.render_rays(xyz_coarse, ray_d_coarse, delta_coarse, self.model_coarse)
+
+            if self.cfg.sampler.hierarchial_sampling:
+                xyz_refine, ray_d_refine, delta_refine = test_sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling)
+                rgb, _, _, _ = test_renderer.render_rays(xyz_refine, ray_d_refine, delta_refine, self.model_refine)
+
+            pixel_pred = rgb.reshape(img_height, img_width, -1)
+            pixel_pred = pixel_pred.permute(2, 0, 1)
+
+            # save the image
+            torchvision.utils.save_image(
+                pixel_pred,
+                os.path.join(save_dir, f"{str(pose_idx).zfill(5)}.png"),
+            )
+
+
+    def _save_ckpt(self, epoch):
+        if os.path.exists(self.ckpt_dir):
+            self.logger.error("Checkpoint directory is not created. Skipping process.", self.ckpt_dir)
+
+        ckpt_file = os.path.join(self.ckpt_dir, f"ckpt_{str(epoch).zfill(6)}.pth")
+
+        ckpt = {
+            "epoch": epoch,
+        }
+
+        ckpt["coarse_model"] = self.model_coarse.radiance_field.state_dict()
+        if self.model_refine is not None:
+            ckpt["refine_model"] = self.model_refine.radiance_field.state_dict()
+
+        if self.optimizer is not None:
+            ckpt["optimizer_state_dict"] = self.optimizer.state_dict()
+
+        if self.scheduler is not None:
+            ckpt["scheduler_state_dict"] = self.scheduler.state_dict()
+
+        torch.save(ckpt, ckpt_file)       
+
 
     def _load_ckpt(self):
-        pass
+        epoch = 0
+        ckpt_file = os.path.join(self.ckpt_dir, self.cfg.train.ckpt.filename)
+
+        if not os.path.exists(ckpt_file):
+            self.logger.warn("Checkpoint not found, proceeding at epoch 0")
+            return epoch
+        
+        self.logger.info(f"Checkpoint found. Loading {ckpt_file}")
+
+        ckpt = torch.load(ckpt_file, map_location="cpu")
+
+        # load epoch
+        epoch = ckpt["epoch"]
+
+        # load scene(s)
+        self.model_coarse.load_state_dict()(ckpt["coarse_model"])
+        if self.model_refine is not None:
+            self.model_refine.load_state_dict(ckpt["refine_model"])
+
+        # load optimizer and scheduler states
+        if self.optimizer is not None:
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            if self.scheduler is not None:
+                self.scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+
+        self.logger.info("Check point loaded. Epoch at : ", epoch)
+
+        return epoch

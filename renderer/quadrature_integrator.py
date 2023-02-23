@@ -51,8 +51,6 @@ class QuadratureIntegrator():
             sigma.append(sigma_batch)
             radiance.append(radiance_batch)
             
-            if i > 2: break
-
         rgb = torch.cat(rgb, 0)
         weights = torch.cat(weights, 0)
         sigma = torch.cat(sigma, 0)

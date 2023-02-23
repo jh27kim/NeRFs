@@ -65,7 +65,7 @@ class StratifiedSampler():
         pts_2d = self._sample_2d_points()
         if target_pixels is None:
             if self.cfg.test:
-                self.target_idx = torch.arange(0, self.camera.img_height * self.camera.img_width)
+                self.target_idx = torch.arange(0, self.height * self.width)
             else:
                 self.target_idx = torch.tensor(np.random.choice(self.height * self.width, size=[self.cfg.sampler.num_pixels], replace=False))
             self.target_pts = pts_2d[self.target_idx, :]
@@ -84,13 +84,11 @@ class StratifiedSampler():
 
         # Refine sampling 
         if refine:
-            if weights is None or num_samples_refine is None or target_pixels is None:
+            if weights is None or num_samples_refine is None:
                 if weights is None:
                     raise Exception("Weights not defined for refine sampling.")
                 elif num_samples_refine is None:
                     raise Exception("Num samples refine not defined for refine sampling.")
-                else:
-                    raise Exception("Target pixels not defined.")
             else:
                 z_samples_refine = self._inverse_sampling(z_bins, weights, dist, num_samples_refine)
                 z_samples, _ = torch.sort(torch.cat([z_samples_coarse, z_samples_refine], -1), -1)
