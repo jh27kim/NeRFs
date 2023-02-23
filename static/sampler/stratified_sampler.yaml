@@ -1,4 +1,5 @@
 sampler_type: stratified
+hierarchial_sampling: true
 num_pixels: 4096
 num_samples_coarse: 64
-num_samples_fine: 128
+num_samples_refine: 128

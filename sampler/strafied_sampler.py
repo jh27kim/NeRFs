@@ -56,7 +56,7 @@ class StratifiedSampler():
         return coords
     
 
-    def sample_rays(self, ext, z_bound, num_samples, weights=None, refine=False):
+    def sample_rays(self, ext, z_bound, num_samples_coarse, num_samples_refine=None, weights=None, refine=False):
         """
         Arg:
             ext: camera extrinsic parameter
@@ -69,39 +69,46 @@ class StratifiedSampler():
             ray_d: Cartesian direction corresponding to ray direction (num rays x num samples x 3)
         """
 
+        ray_o, ray_d = self._sample_points(ext)
+
+        z_near, z_far = z_bound
+        z_bins = torch.linspace(z_near, z_far, num_samples_coarse+1)[:-1]
+
+        dist = (z_far - z_near) / num_samples_coarse
+
+        z_samples_coarse = z_bins + (dist * torch.rand_like(z_bins))
+        z_samples_coarse = z_samples_coarse.repeat(ray_o.shape[0], 1)
+
         if refine:
-            if weights is None:
-                raise Exception("Weights not defined for refine sampling.")
+            if weights is None or num_samples_refine is None:
+                if weights is None:
+                    raise Exception("Weights not defined for refine sampling.")
+                else:
+                    raise Exception("Num samples refine not defined for refine sampling.")
             else:
-                # TODO: Inverse CDF sampling
-                pass
-
+                z_samples_refine = self._inverse_sampling(z_bins, weights, dist, num_samples_refine)
+                z_samples, _ = torch.sort(torch.cat([z_samples_coarse, z_samples_refine], -1), -1)
+        
         else:
-            ray_o, ray_d = self._sample_points(ext)
-
-            z_near, z_far = z_bound
-            z_bins = torch.linspace(z_near, z_far, num_samples)
-            dist = (z_far - z_near) / num_samples
-
-            z_samples = z_bins + (dist * torch.rand_like(z_bins))
-
-            z_samples = z_samples.repeat(ray_o.shape[0], 1)
-
-            delta = torch.diff(torch.cat([z_samples, 1e8 * torch.ones((z_samples.shape[0], 1))], dim=-1), n=1, dim=-1)
-
-            ray_o = ray_o.unsqueeze(1)
-            ray_o = ray_o.repeat(1, num_samples, 1)
+            z_samples = z_samples_coarse
+            self.logger.info(f"Hierarchial sampling done. Total {z_samples.shape} depth samples to be extracted.")
             
-            ray_d = ray_d.unsqueeze(1)
-            ray_d = ray_d.repeat(1, num_samples, 1)
 
-            z_samples = z_samples.unsqueeze(2)
+        delta = torch.diff(torch.cat([z_samples, 1e8 * torch.ones((z_samples.shape[0], 1))], dim=-1), n=1, dim=-1)
 
-            xyz = ray_o + z_samples * ray_d
+        ray_o = ray_o.unsqueeze(1)
+        ray_o = ray_o.repeat(1, z_samples.shape[1], 1)
+        
+        ray_d = ray_d.unsqueeze(1)
+        ray_d = ray_d.repeat(1, z_samples.shape[1], 1)
 
-            self.logger.info(f"Total rays {ray_o.shape[0]}. Sampled {num_samples} points from each ray. Sampled point dimension: {xyz.shape}")
+        z_samples = z_samples.unsqueeze(2)
 
-            return xyz, ray_d, delta
+        xyz = ray_o + z_samples * ray_d
+
+        self.logger.info(f"Total rays {ray_o.shape[0]}. Sampled {z_samples.shape[1]} points from each ray. Sampled 3D point dimension: {xyz.shape}")
+
+        return xyz, ray_d, delta
             
 
     def _sample_points(self, ext):
@@ -122,3 +129,23 @@ class StratifiedSampler():
         self.logger.info(f"Ray direction shape: {ray_d.shape}  -  ray origin shape: {ray_o.shape}")
         
         return ray_o, ray_d
+    
+
+    def _inverse_sampling(self, z_bins, weights, dist, num_samples_refine):
+        z_bins_refine = z_bins.repeat(weights.shape[0], 1)
+        weights += 1e-5
+
+        pdf = weights / torch.sum(weights, -1, keepdim=True)
+        cdf = torch.cumsum(pdf, dim=-1)
+        cdf = torch.cat([torch.zeros_like(cdf[:, :1]), cdf[..., :-1]], -1)
+
+        uniform_dist = torch.rand(weights.shape[0] ,num_samples_refine)
+        uniform_dist.contiguous()
+
+        idx = torch.searchsorted(cdf, uniform_dist, right=True) - 1
+        z_start = torch.gather(z_bins_refine, 1, idx)
+        samples = z_start + dist * torch.rand_like(z_start)
+
+        return samples
+
+

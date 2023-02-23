@@ -74,4 +74,14 @@ class Master():
             pose = _pose.squeeze()
 
             self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse)
+
+            # Unit test
+            if self.cfg.test:
+                weights = torch.rand((self.dataset.img_width * self.dataset.img_height, self.cfg.sampler.num_samples_coarse))
+            else:    
+                weights = torch.rand((self.cfg.sampler.num_pixels, self.cfg.sampler.num_samples_coarse))
+
+            if self.cfg.sampler.hierarchial_sampling:
+                self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weights, self.cfg.sampler.hierarchial_sampling)
+
             exit(0)
