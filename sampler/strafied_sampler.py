@@ -30,12 +30,11 @@ class StratifiedSampler():
 
         pts_2d = self._sample_2d_points()
 
-        self.target_pts = None
         if cfg.test:
-            self.target_pts = pts_2d
+            target_idx = torch.arange(0, self.camera.img_height * self.camera.img_width)
         else:
-            random_index = torch.tensor(np.random.choice(self.height * self.width, size=[cfg.sampler.num_pixels], replace=False))
-            self.target_pts = pts_2d[random_index, :]
+            target_idx = torch.tensor(np.random.choice(self.height * self.width, size=[cfg.sampler.num_pixels], replace=False))
+        self.target_pts = pts_2d[target_idx, :]
 
 
     def _sample_2d_points(self):
@@ -69,7 +68,7 @@ class StratifiedSampler():
             ray_d: Cartesian direction corresponding to ray direction (num rays x num samples x 3)
         """
 
-        ray_o, ray_d = self._sample_points(ext)
+        ray_o, ray_d = self._cast_rays(ext)
 
         z_near, z_far = z_bound
         z_bins = torch.linspace(z_near, z_far, num_samples_coarse+1)[:-1]
@@ -111,7 +110,7 @@ class StratifiedSampler():
         return xyz, ray_d, delta
             
 
-    def _sample_points(self, ext):
+    def _cast_rays(self, ext):
         # Convert u, v -> x, y (applying inverse intrinsic)
         self.target_pts = self.target_pts.float()
         self.target_pts[:, 0]  = (self.target_pts[:, 0] - self.width//2) / self.focal
