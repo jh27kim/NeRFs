@@ -12,5 +12,6 @@ class NeRF(Master):
         self.logger = logger
         super().__init__()
 
-        self.model = Nerf(self.cfg, self.pos_encoder.get_out_dim(), self.dir_encoder.get_out_dim())
-        
+        self.model_coarse = Nerf(self.cfg, self.pos_encoder.get_out_dim(), self.dir_encoder.get_out_dim())
+        if self.cfg.sampler.hierarchial_sampling:
+            self.model_refine = Nerf(self.cfg, self.pos_encoder.get_out_dim(), self.dir_encoder.get_out_dim())

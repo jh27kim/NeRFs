@@ -13,6 +13,11 @@ class Master():
         self.initialize()
         self.load_data()
         self.encode_input()
+
+        self.encoder_dict = {
+            "pos_encoder": self.pos_encoder,
+            "dir_encoder": self.dir_encoder
+        }
         
         if self.cfg.sampler.sampler_type == "stratified":
             self.sampler = StratifiedSampler(self.cfg, self.dataset.img_height, self.dataset.img_width, self.dataset.focal_length, self.logger)
@@ -20,10 +25,9 @@ class Master():
             raise NotImplementedError("Sampler not implemented. ", self.cfg.sampler.sampler_type)
         
         if self.cfg.rendering.renderer_type == "quadrature":
-            self.renderer = QuadratureIntegrator(self.logger)
+            self.renderer = QuadratureIntegrator(self.logger, self.sampler, self.encoder_dict)
         else:
             raise NotImplementedError("Renderer not implemented. ", self.cfg.rendering.renderer_type)
-        
 
     
     def initialize(self):
@@ -74,8 +78,9 @@ class Master():
             pose = _pose.squeeze()
 
             xyz_coarse, ray_d_coarse, delta_coarse = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse)
-
+            rgb_coarse, weight_coarse, sigma_coarse, radiance_coarse = self.renderer.render_rays(xyz_coarse, ray_d_coarse, delta_coarse, self.model_coarse)
             
+            exit(0)
 
             # Unit test
             if self.cfg.test:
@@ -86,6 +91,3 @@ class Master():
             if self.cfg.sampler.hierarchial_sampling:
                 xyz_refine, ray_d_refine, delta_refine = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weights, self.cfg.sampler.hierarchial_sampling)
 
-
-
-            exit(0)

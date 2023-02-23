@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Nerf(nn.Module):
     def __init__(self, cfg, pos_input, dir_input):
@@ -24,7 +25,7 @@ class Nerf(nn.Module):
         self.feature_layer = nn.Linear(self.pos_width, self.pos_width)
         self.density_layer = nn.Linear(self.pos_width, self.density_dim)
 
-        self.dir_layer = nn.Linear(self.dir_input + dir_input, self.dir_width)
+        self.dir_layer = nn.Linear(self.dir_input + self.pos_width, self.dir_width)
         self.rgb_layer = nn.Linear(self.dir_width, self.rgb_dim)
 
 
@@ -32,20 +33,20 @@ class Nerf(nn.Module):
         p = pos
         for i, _ in enumerate(self.pos_layer_lst):            
             p = self.pos_layer_lst[i](p)
-            p = nn.ReLU(p)
+            p = F.relu(p)
             
             if i == self.skip_layer:
-                p = torch.cat([self.pos_input, p], -1)
+                p = torch.cat([pos, p], -1)
         
         sigma = self.density_layer(p)
 
         p = self.feature_layer(p)
         
-        p = self.dir_layer(torch.cat([p, self.dir_input], -1))
-        p = nn.ReLU(p)
+        p = self.dir_layer(torch.cat([p, dir], -1))
+        p = F.relu(p)
 
         p = self.rgb_layer(p)
-        rgb = nn.Sigmoid(p)
+        rgb = torch.sigmoid(p)
 
         return rgb, sigma
 

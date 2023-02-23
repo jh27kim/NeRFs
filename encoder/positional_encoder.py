@@ -19,8 +19,10 @@ class PositionalEncoder():
             embed_fn.append(lambda x: x)
 
         for freq in range(self._freq_level):
-            embed_fn.append(lambda x : torch.sin((2**freq) * x))
-            embed_fn.append(lambda x : torch.cos((2**freq) * x))
+            embed_fn.append(lambda x, freq=freq: torch.sin((2**freq) * x))
+            embed_fn.append(lambda x, freq=freq: torch.cos((2**freq) * x))
+
+        return embed_fn
 
     def encode(self, x):
         return torch.cat([fn(x) for fn in self._embed_fns], -1)
