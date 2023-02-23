@@ -24,11 +24,11 @@ class Master():
         self.log_dir = self.cfg.logs.dir
         self.ckpt_dir = os.path.join(self.log_dir, self.cfg.data.dataset_type, self.cfg.data.scene_name)
         if not os.path.exists(self.ckpt_dir):
-            os.makedirs(os.path.join(self.ckpt_dir, self.cfg.data.dataset_type, self.cfg.data.scene_name))
+            os.makedirs(os.path.join(self.ckpt_dir))
 
         self.output_dir = os.path.join(self.cfg.output, self.cfg.data.dataset_type, self.cfg.data.scene_name)
         if not os.path.exists(self.output_dir):
-            os.makedirs(os.path.join(self.output_dir, self.cfg.data.dataset_type, self.cfg.data.scene_name))
+            os.makedirs(os.path.join(self.output_dir))
 
         self.initialize()
         self.load_data()
