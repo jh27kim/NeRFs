@@ -10,4 +10,3 @@ log:
   epoch_btw_vis: 50
 ckpt:
   path: null
-refine: true
