@@ -23,19 +23,12 @@ class StratifiedSampler():
     """
     def __init__(self, cfg, w, h, f, logger):
         self.target_pts = None
+        self.target_idx = None
         self.width = w
         self.height = h
         self.focal = f
         self.logger = logger
-
-        pts_2d = self._sample_2d_points()
-
-        if cfg.test:
-            target_idx = torch.arange(0, self.camera.img_height * self.camera.img_width)
-        else:
-            target_idx = torch.tensor(np.random.choice(self.height * self.width, size=[cfg.sampler.num_pixels], replace=False))
-        self.target_pts = pts_2d[target_idx, :]
-
+        self.cfg = cfg
 
     def _sample_2d_points(self):
         """
@@ -55,7 +48,7 @@ class StratifiedSampler():
         return coords
     
 
-    def sample_rays(self, ext, z_bound, num_samples_coarse, num_samples_refine=None, weights=None, refine=False):
+    def sample_rays(self, ext, z_bound, num_samples_coarse, num_samples_refine=None, weights=None, refine=False, target_pixels=None):
         """
         Arg:
             ext: camera extrinsic parameter
@@ -67,7 +60,19 @@ class StratifiedSampler():
             ray_o: 3D points along the ray (num rays x num samples x 3)
             ray_d: Cartesian direction corresponding to ray direction (num rays x num samples x 3)
         """
+        
+        # Sample pixels
+        pts_2d = self._sample_2d_points()
+        if target_pixels is None:
+            if self.cfg.test:
+                self.target_idx = torch.arange(0, self.camera.img_height * self.camera.img_width)
+            else:
+                self.target_idx = torch.tensor(np.random.choice(self.height * self.width, size=[self.cfg.sampler.num_pixels], replace=False))
+            self.target_pts = pts_2d[self.target_idx, :]
+        else:
+            self.target_pts = pts_2d[target_pixels, :]
 
+        # Cast rays
         ray_o, ray_d = self._cast_rays(ext)
 
         z_near, z_far = z_bound
@@ -77,12 +82,15 @@ class StratifiedSampler():
         z_samples_coarse = z_bins.repeat(ray_o.shape[0], 1)
         z_samples_coarse = z_samples_coarse + (dist * torch.rand_like(z_samples_coarse))
 
+        # Refine sampling 
         if refine:
-            if weights is None or num_samples_refine is None:
+            if weights is None or num_samples_refine is None or target_pixels is None:
                 if weights is None:
                     raise Exception("Weights not defined for refine sampling.")
-                else:
+                elif num_samples_refine is None:
                     raise Exception("Num samples refine not defined for refine sampling.")
+                else:
+                    raise Exception("Target pixels not defined.")
             else:
                 z_samples_refine = self._inverse_sampling(z_bins, weights, dist, num_samples_refine)
                 z_samples, _ = torch.sort(torch.cat([z_samples_coarse, z_samples_refine], -1), -1)

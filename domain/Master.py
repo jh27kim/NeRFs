@@ -75,14 +75,17 @@ class Master():
 
     def run(self):
         for _img, _pose in tqdm(self.loader):
-            img = _img.squeeze()
+            gt_img = _img.squeeze()
+            gt_img = torch.reshape(gt_img, (-1, 3))
             pose = _pose.squeeze()
 
             xyz_coarse, ray_d_coarse, delta_coarse = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse)
             rgb_coarse, weight_coarse, sigma_coarse, radiance_coarse = self.renderer.render_rays(xyz_coarse, ray_d_coarse, delta_coarse, self.model_coarse)
 
+            target_pixel_index = self.sampler.get_target_index
             if self.cfg.sampler.hierarchial_sampling:
-                xyz_refine, ray_d_refine, delta_refine = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling)
+                xyz_refine, ray_d_refine, delta_refine = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling, target_pixel_index)
                 rgb_refine, weight_refine, sigma_refine, radiance_refine = self.renderer.render_rays(xyz_refine, ray_d_refine, delta_refine, self.model_refine)
 
             
+
