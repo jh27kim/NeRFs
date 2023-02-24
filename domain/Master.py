@@ -40,12 +40,12 @@ class Master():
         }
         
         if self.cfg.sampler.sampler_type == "stratified":
-            self.sampler = StratifiedSampler(self.cfg, self.dataset.img_height, self.dataset.img_width, self.dataset.focal_length, self.logger)
+            self.sampler = StratifiedSampler(self.cfg, self.dataset.img_height, self.dataset.img_width, self.dataset.focal_length, self.logger, self.device)
         else:
             raise NotImplementedError("Sampler not implemented. ", self.cfg.sampler.sampler_type)
         
         if self.cfg.rendering.renderer_type == "quadrature":
-            self.renderer = QuadratureIntegrator(self.logger, self.sampler, self.encoder_dict)
+            self.renderer = QuadratureIntegrator(self.logger, self.sampler, self.encoder_dict, self.device)
         else:
             raise NotImplementedError("Renderer not implemented. ", self.cfg.rendering.renderer_type)
 
@@ -54,14 +54,16 @@ class Master():
         if torch.cuda.is_available():
             device_id = self.cfg.cuda
 
-        if device_id > torch.cuda.device_count() - 1:
-            self.logger.warn("Invalid device ID. " f"There are {torch.cuda.device_count()} devices but got index {device_id}.")
+            if device_id > torch.cuda.device_count() - 1:
+                self.logger.warn("Invalid device ID. " f"There are {torch.cuda.device_count()} devices but got index {device_id}.")
 
-            device_id = 0
-            self.cfg.cuda.device_id = device_id
+                device_id = 0
+                self.cfg.cuda = device_id
 
-            self.logger.info(f"Set device ID to {self.cfg.cuda.device_id} by default.")
-            torch.cuda.set_device(self.cfg.cuda.device_id)
+                self.logger.info(f"Set device ID to {self.cfg.cuda.device_id} by default.")
+                
+            torch.cuda.set_device(self.cfg.cuda)
+            self.device = torch.cuda.current_device()
             self.logger.info(f"CUDA device detected. Using device {torch.cuda.current_device()}.")
 
         else:
@@ -158,7 +160,7 @@ class Master():
                 rgb_coarse, weight_coarse, sigma_coarse, radiance_coarse = self.renderer.render_rays(xyz_coarse, ray_d_coarse, delta_coarse, self.model_coarse)
 
                 target_pixel_index = self.sampler.get_target_index
-                gt_target_pixel = gt_img[target_pixel_index, ...]
+                gt_target_pixel = gt_img[target_pixel_index, ...].cuda()
 
                 coarse_loss = self.loss_fn(gt_target_pixel, rgb_coarse)
                 total_coarse_loss += coarse_loss.item()
@@ -272,9 +274,9 @@ class Master():
         epoch = ckpt["epoch"]
 
         # load scene(s)
-        self.model_coarse.load_state_dict()(ckpt["coarse_model"])
+        self.model_coarse.load_state_dict()(ckpt["coarse_model"]).to(torch.cuda.current_device())
         if self.model_refine is not None:
-            self.model_refine.load_state_dict(ckpt["refine_model"])
+            self.model_refine.load_state_dict(ckpt["refine_model"]).to(torch.cuda.current_device())
 
         # load optimizer and scheduler states
         if self.optimizer is not None:

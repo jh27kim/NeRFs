@@ -21,7 +21,7 @@ class StratifiedSampler():
         ray_d (num_samples x 3)
 
     """
-    def __init__(self, cfg, w, h, f, logger):
+    def __init__(self, cfg, w, h, f, logger, device):
         self.target_pts = None
         self.target_idx = None
         self.width = w
@@ -29,6 +29,7 @@ class StratifiedSampler():
         self.focal = f
         self.logger = logger
         self.cfg = cfg
+        self.device = device
 
     def _sample_2d_points(self):
         """
@@ -78,7 +79,7 @@ class StratifiedSampler():
         z_near, z_far = z_bound
         dist = (z_far - z_near) / num_samples_coarse
 
-        z_bins = torch.linspace(z_near, z_far, num_samples_coarse+1)[:-1]
+        z_bins = torch.linspace(z_near, z_far, num_samples_coarse+1, device=self.device)[:-1]
         z_samples_coarse = z_bins.repeat(ray_o.shape[0], 1)
         z_samples_coarse = z_samples_coarse + (dist * torch.rand_like(z_samples_coarse))
 
@@ -90,6 +91,7 @@ class StratifiedSampler():
                 elif num_samples_refine is None:
                     raise Exception("Num samples refine not defined for refine sampling.")
             else:
+                weights = weights.to(self.device)
                 z_samples_refine = self._inverse_sampling(z_bins, weights, dist, num_samples_refine)
                 z_samples, _ = torch.sort(torch.cat([z_samples_coarse, z_samples_refine], -1), -1)
                 self.logger.info(f"Hierarchial sampling done. Total {z_samples.shape} depth samples to be extracted.")
@@ -98,11 +100,13 @@ class StratifiedSampler():
             z_samples = z_samples_coarse
             
 
-        delta = torch.diff(torch.cat([z_samples, 1e8 * torch.ones((z_samples.shape[0], 1))], dim=-1), n=1, dim=-1)
+        delta = torch.diff(torch.cat([z_samples, 1e8 * torch.ones((z_samples.shape[0], 1), device=self.device)], dim=-1), n=1, dim=-1)
 
+        ray_o = ray_o.to(self.device)
         ray_o = ray_o.unsqueeze(1)
         ray_o = ray_o.repeat(1, z_samples.shape[1], 1)
         
+        ray_d = ray_d.to(self.device)
         ray_d = ray_d.unsqueeze(1)
         ray_d = ray_d.repeat(1, z_samples.shape[1], 1)
 
@@ -140,9 +144,9 @@ class StratifiedSampler():
 
         pdf = weights / torch.sum(weights, -1, keepdim=True)
         cdf = torch.cumsum(pdf, dim=-1)
-        cdf = torch.cat([torch.zeros_like(cdf[:, :1]), cdf[..., :-1]], -1)
+        cdf = torch.cat([torch.zeros_like(cdf[:, :1], device=self.device), cdf[..., :-1]], -1)
 
-        uniform_dist = torch.rand(weights.shape[0] ,num_samples_refine)
+        uniform_dist = torch.rand(weights.shape[0] ,num_samples_refine, device=self.device)
         uniform_dist.contiguous()
 
         idx = torch.searchsorted(cdf, uniform_dist, right=True) - 1

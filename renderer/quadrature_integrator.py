@@ -3,11 +3,12 @@ from tqdm import tqdm
 
 class QuadratureIntegrator():
 
-    def __init__(self, logger, sampler, encoder_dict):
+    def __init__(self, logger, sampler, encoder_dict, device):
         self.logger = logger
         self.sampler = sampler
         self.pos_encoder = encoder_dict["pos_encoder"]
         self.dir_encoder = encoder_dict["dir_encoder"]
+        self.device = device
 
     def render_rays(self, xyz, dir, delta, model, batch=64):
         """
@@ -41,6 +42,7 @@ class QuadratureIntegrator():
             dir_flat_enc = self.dir_encoder.encode(dir_flat)
 
             radiance_batch, sigma_batch = model(xyz_flat_enc, dir_flat_enc)
+
             radiance_batch = radiance_batch.reshape(batch_size, sample_size, -1)
             sigma_batch = sigma_batch.reshape(batch_size, sample_size)
 
@@ -76,7 +78,7 @@ class QuadratureIntegrator():
         """
 
         alpha = 1. - torch.exp(-sigma_batch * delta)
-        transmittance = torch.exp(-torch.cumsum(torch.cat([torch.zeros(sigma_batch.shape[0], 1), sigma_batch * delta], -1), -1))[..., :-1]
+        transmittance = torch.exp(-torch.cumsum(torch.cat([torch.zeros((sigma_batch.shape[0], 1), device=self.device), sigma_batch * delta], -1), -1))[..., :-1]
 
         weight_batch = transmittance * alpha
 
