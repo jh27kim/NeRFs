@@ -9,6 +9,9 @@ import os
     config_name="config",
 )
 def main(cfg):
+    cmd = 'echo start running > ./logs/main.log'
+    os.system(cmd)
+
     logger = create_logger("NeRF-logger", cfg)
     logger.info(f"Running model : {cfg.network.model}")
 

@@ -55,6 +55,8 @@ class QuadratureIntegrator():
         weights = torch.cat(weights, 0)
         sigma = torch.cat(sigma, 0)
         radiance = torch.cat(radiance, 0)
+        
+        self.logger.info(f"Rendering finished. Total rendered output. {rgb.shape}")
 
         return rgb, weights, sigma, radiance
     

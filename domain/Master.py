@@ -146,6 +146,7 @@ class Master():
             total_coarse_loss = 0.
             total_refine_loss = 0.
 
+            _img_cnt = 1
             for _img, _pose in self.loader:
                 self.optimizer.zero_grad()
 
@@ -159,36 +160,42 @@ class Master():
                 target_pixel_index = self.sampler.get_target_index
                 gt_target_pixel = gt_img[target_pixel_index, ...]
 
-                loss = self.loss_fn(gt_target_pixel, rgb_coarse)
-                total_coarse_loss += loss.item()
+                coarse_loss = self.loss_fn(gt_target_pixel, rgb_coarse)
+                total_coarse_loss += coarse_loss.item()
+
+                self.logger.info(f"Coarse Done {_img_cnt} / {len(self.loader)}. Coarse loss: {coarse_loss.item()}")
 
                 if self.cfg.sampler.hierarchial_sampling:
                     xyz_refine, ray_d_refine, delta_refine = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling, target_pixel_index)
                     rgb_refine, weight_refine, sigma_refine, radiance_refine = self.renderer.render_rays(xyz_refine, ray_d_refine, delta_refine, self.model_refine)
                     
                     refine_loss = self.loss_fn(gt_target_pixel, rgb_refine)
-                    loss += refine_loss
-
+                    coarse_loss += refine_loss
                     total_refine_loss += refine_loss.item()
                 
-                total_loss += loss.item()
+                    self.logger.info(f"Refine Done {_img_cnt} / {len(self.loader)}. Refine loss: {refine_loss.item()}")
 
-                loss.backward()
+                _img_cnt += 1
+
+                total_loss += coarse_loss.item()
+                coarse_loss.backward()
+
                 self.optimizer.step()
-
                 if self.scheduler is not None:
                     self.scheduler.step()
+
+                self.logger.info(f"Image: {_img_cnt}. Total loss: {coarse_loss.item()}")
 
             total_loss /= len(self.loader)
             total_coarse_loss /= len(self.loader)
             total_refine_loss /= len(self.loader)
 
-            self.logger.info(f"Epoch: {epoch}. Total loss: {total_loss} | Total coarse loss {total_coarse_loss} | Total refine loss {total_refine_loss}")
+            self.logger.info(f"Epoch: {epoch+1} / {self.cfg.train.optim.num_iter//len(self.dataset)}. Total loss: {total_loss} | Total coarse loss {total_coarse_loss} | Total refine loss {total_refine_loss}")
 
             if (epoch + 1) % self.cfg.train.log.epoch_btw_ckpt == 0:
                 self._save_ckpt(epoch)
 
-            if (epoch + 1) % self.cfg.train.log.epoch_btw.vis == 0:
+            if (epoch + 1) % self.cfg.train.log.epoch_btw_vis == 0:
                 intrinsics = {"f_x": self.dataset.focal_length, "f_y": self.dataset.focal_length, "img_width": self.dataset.img_width, "img_height": self.dataset.img_height}
                 extrinsics = self.dataset.render_poses
                 img_res = (self.dataset.img_height, self.dataset.img_width)

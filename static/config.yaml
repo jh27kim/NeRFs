@@ -9,7 +9,7 @@ defaults:
   - logs: default
 
 cuda: 0
-test: true
+test: false
 output: ./output
 
 hydra:  

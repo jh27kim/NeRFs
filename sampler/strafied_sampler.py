@@ -92,10 +92,10 @@ class StratifiedSampler():
             else:
                 z_samples_refine = self._inverse_sampling(z_bins, weights, dist, num_samples_refine)
                 z_samples, _ = torch.sort(torch.cat([z_samples_coarse, z_samples_refine], -1), -1)
+                self.logger.info(f"Hierarchial sampling done. Total {z_samples.shape} depth samples to be extracted.")
         
         else:
             z_samples = z_samples_coarse
-            self.logger.info(f"Hierarchial sampling done. Total {z_samples.shape} depth samples to be extracted.")
             
 
         delta = torch.diff(torch.cat([z_samples, 1e8 * torch.ones((z_samples.shape[0], 1))], dim=-1), n=1, dim=-1)
