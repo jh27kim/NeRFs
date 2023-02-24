@@ -165,7 +165,7 @@ class Master():
                 coarse_loss = self.loss_fn(gt_target_pixel, rgb_coarse)
                 total_coarse_loss += coarse_loss.item()
 
-                self.logger.info(f"Coarse Done {_img_cnt} / {len(self.loader)}. Coarse loss: {coarse_loss.item()}")
+                # self.logger.info(f"Coarse Done {_img_cnt} / {len(self.loader)}. Coarse loss: {coarse_loss.item()}")
 
                 if self.cfg.sampler.hierarchial_sampling:
                     xyz_refine, ray_d_refine, delta_refine = self.sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling, target_pixel_index)
@@ -175,7 +175,7 @@ class Master():
                     coarse_loss += refine_loss
                     total_refine_loss += refine_loss.item()
                 
-                    self.logger.info(f"Refine Done {_img_cnt} / {len(self.loader)}. Refine loss: {refine_loss.item()}")
+                    # self.logger.info(f"Refine Done {_img_cnt} / {len(self.loader)}. Refine loss: {refine_loss.item()}")
 
                 _img_cnt += 1
 
@@ -186,7 +186,7 @@ class Master():
                 if self.scheduler is not None:
                     self.scheduler.step()
 
-                self.logger.info(f"Image: {_img_cnt}. Total loss: {coarse_loss.item()}")
+                # self.logger.info(f"Image: {_img_cnt}. Total loss: {coarse_loss.item()}")
 
             total_loss /= len(self.loader)
             total_coarse_loss /= len(self.loader)

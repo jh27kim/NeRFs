@@ -94,7 +94,7 @@ class StratifiedSampler():
                 weights = weights.to(self.device)
                 z_samples_refine = self._inverse_sampling(z_bins, weights, dist, num_samples_refine)
                 z_samples, _ = torch.sort(torch.cat([z_samples_coarse, z_samples_refine], -1), -1)
-                self.logger.info(f"Hierarchial sampling done. Total {z_samples.shape} depth samples to be extracted.")
+                # self.logger.info(f"Hierarchial sampling done. Total {z_samples.shape} depth samples to be extracted.")
         
         else:
             z_samples = z_samples_coarse
@@ -113,7 +113,7 @@ class StratifiedSampler():
         z_samples = z_samples.unsqueeze(2)
         xyz = ray_o + z_samples * ray_d
 
-        self.logger.info(f"Total rays {ray_o.shape[0]}. Sampled {z_samples.shape[1]} points from each ray. Sampled 3D point dimension: {xyz.shape}")
+        # self.logger.info(f"Total rays {ray_o.shape[0]}. Sampled {z_samples.shape[1]} points from each ray. Sampled 3D point dimension: {xyz.shape}")
 
         return xyz, ray_d, delta
             
@@ -133,14 +133,14 @@ class StratifiedSampler():
         ray_o = torch.zeros_like(ray_d) + ext[:3, -1]
 
         assert ray_d.shape[0] == ray_o.shape[0]
-        self.logger.info(f"Ray direction shape: {ray_d.shape}  -  ray origin shape: {ray_o.shape}")
+        # self.logger.info(f"Ray direction shape: {ray_d.shape}  -  ray origin shape: {ray_o.shape}")
         
         return ray_o, ray_d
     
 
     def _inverse_sampling(self, z_bins, weights, dist, num_samples_refine):
         z_bins_refine = z_bins.repeat(weights.shape[0], 1)
-        weights += 1e-5
+        weights += 1e-7
 
         pdf = weights / torch.sum(weights, -1, keepdim=True)
         cdf = torch.cumsum(pdf, dim=-1)

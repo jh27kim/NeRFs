@@ -22,8 +22,7 @@ class Nerf(nn.Module):
         self.pos_layer_lst = nn.ModuleList([nn.Linear(pos_input, self.pos_width)] + \
                          [nn.Linear(self.pos_width, self.pos_width) if i != self.skip_layer else nn.Linear(self.pos_width + self.pos_input, self.pos_width) for i in range(self.pos_depth - 1)])
         
-        self.feature_layer = nn.Linear(self.pos_width, self.pos_width)
-        self.density_layer = nn.Linear(self.pos_width, self.density_dim)
+        self.feature_layer = nn.Linear(self.pos_width, self.pos_width + self.density_dim)
 
         self.dir_layer = nn.Linear(self.dir_input + self.pos_width, self.dir_width)
         self.rgb_layer = nn.Linear(self.dir_width, self.rgb_dim)
@@ -38,11 +37,11 @@ class Nerf(nn.Module):
             if i == self.skip_layer:
                 p = torch.cat([pos, p], -1)
         
-        sigma = self.density_layer(p)
-
         p = self.feature_layer(p)
+
+        sigma = F.relu(p[:, 0])
         
-        p = self.dir_layer(torch.cat([p, dir], -1))
+        p = self.dir_layer(torch.cat([p[:, 1:], dir], -1))
         p = F.relu(p)
 
         p = self.rgb_layer(p)

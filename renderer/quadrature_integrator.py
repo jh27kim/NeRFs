@@ -43,10 +43,17 @@ class QuadratureIntegrator():
 
             radiance_batch, sigma_batch = model(xyz_flat_enc, dir_flat_enc)
 
+            # self.logger.error(f"Radiance max : {torch.max(radiance_batch)}  min: {torch.min(radiance_batch)}")
+            # self.logger.error(f"sigma max: {torch.max(sigma_batch)}  min: {torch.min(sigma_batch)}")
+
             radiance_batch = radiance_batch.reshape(batch_size, sample_size, -1)
             sigma_batch = sigma_batch.reshape(batch_size, sample_size)
 
             rgb_batch, weight_batch = self._integrate(radiance_batch, sigma_batch, delta_batch)
+
+            # self.logger.error(f"delta  max: {torch.max(delta_batch)}  min : {torch.min(delta_batch)} ")
+            # self.logger.error(f"RGB max : {torch.max(rgb_batch)}  min: {torch.min(rgb_batch)}  RGB nan : {torch.sum(torch.isnan(rgb_batch))}")
+            # self.logger.error(f"RGB max : {torch.max(weight_batch)}  min : {torch.min(weight_batch)} Weight nan: {torch.sum(torch.isnan(weight_batch))}")
 
             rgb.append(rgb_batch)
             weights.append(weight_batch)
@@ -58,7 +65,7 @@ class QuadratureIntegrator():
         sigma = torch.cat(sigma, 0)
         radiance = torch.cat(radiance, 0)
         
-        self.logger.info(f"Rendering finished. Total rendered output. {rgb.shape}")
+        # self.logger.info(f"Rendering finished. Total rendered output. {rgb.shape}")
 
         return rgb, weights, sigma, radiance
     
@@ -78,7 +85,10 @@ class QuadratureIntegrator():
         """
 
         alpha = 1. - torch.exp(-sigma_batch * delta)
+        # self.logger.error(f"Alpha max : {torch.max(alpha)}  min: {torch.min(alpha)}")
+
         transmittance = torch.exp(-torch.cumsum(torch.cat([torch.zeros((sigma_batch.shape[0], 1), device=self.device), sigma_batch * delta], -1), -1))[..., :-1]
+        # self.logger.error(f"transmittance max : {torch.max(transmittance)}  min: {torch.min(transmittance)}")
 
         weight_batch = transmittance * alpha
 
