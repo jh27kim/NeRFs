@@ -6,7 +6,7 @@ optim:
   end_lr: 0.00005
   eps: 1e-8
 log:
-  epoch_btw_ckpt: 50000
-  epoch_btw_vis: 5000
+  epoch_btw_ckpt: 500
+  epoch_btw_vis: 500
 ckpt:
-  filename: ckpt_0000
+  filename: ckpt_000499.pth

@@ -17,3 +17,7 @@ class NeRF(Master):
         self.model_coarse = Nerf(self.cfg, self.pos_encoder.get_out_dim(), self.dir_encoder.get_out_dim()).to(cfg.cuda)
         if self.cfg.sampler.hierarchial_sampling:
             self.model_refine = Nerf(self.cfg, self.pos_encoder.get_out_dim(), self.dir_encoder.get_out_dim()).to(cfg.cuda)
+
+    
+    def run(self):
+        super().run()

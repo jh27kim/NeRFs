@@ -10,7 +10,7 @@ class QuadratureIntegrator():
         self.dir_encoder = encoder_dict["dir_encoder"]
         self.device = device
 
-    def render_rays(self, xyz, dir, delta, model, batch=64):
+    def render_rays(self, xyz, dir, delta, model, batch=1):
         """
         Given XYZ and view direction, returns pixel rgb, weight, sigma and radiance.
         Quadratic integration used, for more details check (https://arxiv.org/abs/2003.08934).
@@ -32,22 +32,30 @@ class QuadratureIntegrator():
         sigma = []
         radiance = []
 
-        batch_size, sample_size = batch, xyz.shape[1]
-        for i in range(0, xyz.shape[0], batch):
-            xyz_flat = torch.reshape(xyz[i:i+batch], (-1, xyz.shape[-1]))
-            dir_flat = torch.reshape(dir[i:i+batch], (-1, dir.shape[-1]))
-            delta_batch = delta[i:i+batch]
+        partitions = torch.linspace(0, xyz.shape[0], batch + 1, dtype=torch.long)
+        partitions[-1] = xyz.shape[0]
+
+        for start, end in zip(partitions[0::1], partitions[1::1]):
+            xyz_batch = xyz[start:end, ...]
+            xyz_flat = torch.reshape(xyz_batch, (-1, xyz_batch.shape[-1]))
+
+            dir_batch = dir[start:end, ...]
+            dir_flat = torch.reshape(dir_batch, (-1, dir_batch.shape[-1]))
+
+            delta_batch = delta[start:end, ...]
+
+            num_ray, num_sample, _ = xyz_batch.shape
 
             xyz_flat_enc = self.pos_encoder.encode(xyz_flat)
             dir_flat_enc = self.dir_encoder.encode(dir_flat)
-
+            
             radiance_batch, sigma_batch = model(xyz_flat_enc, dir_flat_enc)
 
             # self.logger.error(f"Radiance max : {torch.max(radiance_batch)}  min: {torch.min(radiance_batch)}")
             # self.logger.error(f"sigma max: {torch.max(sigma_batch)}  min: {torch.min(sigma_batch)}")
 
-            radiance_batch = radiance_batch.reshape(batch_size, sample_size, -1)
-            sigma_batch = sigma_batch.reshape(batch_size, sample_size)
+            radiance_batch = radiance_batch.reshape(num_ray, num_sample, -1)
+            sigma_batch = sigma_batch.reshape(num_ray, num_sample)
 
             rgb_batch, weight_batch = self._integrate(radiance_batch, sigma_batch, delta_batch)
 

@@ -22,7 +22,7 @@ Most of the implementations inspired from
 class Master():
     def __init__(self):
         self.log_dir = self.cfg.logs.dir
-        self.ckpt_dir = os.path.join(self.log_dir, self.cfg.data.dataset_type, self.cfg.data.scene_name)
+        self.ckpt_dir = os.path.join(self.log_dir, "ckpt", self.cfg.data.dataset_type, self.cfg.data.scene_name)
         if not os.path.exists(self.ckpt_dir):
             os.makedirs(os.path.join(self.ckpt_dir))
 
@@ -119,7 +119,8 @@ class Master():
 
         else:
             raise NotImplementedError("Dataset currently not available. ", self.cfg.data.datatset_type)
-    
+
+
     def encode_input(self):
         if self.cfg.encoding.encoding_type == "positional":
             self.pos_encoder = PositionalEncoder(self.cfg.encoding.pos_dim, self.cfg.encoding.pos_encoding, self.cfg.encoding.include_input)
@@ -132,7 +133,7 @@ class Master():
         self.init_optim()
         self.init_loss()
         start = self._load_ckpt()
-
+        
         if self.cfg.test:
             intrinsics = {"f_x": self.dataset.focal_length, "f_y": self.dataset.focal_length, "img_width": self.dataset.img_width, "img_height": self.dataset.img_height}
             extrinsics = self.dataset.render_poses
@@ -207,47 +208,53 @@ class Master():
 
 
     def _visualize(self, intrinsics, extrinsics, img_res, save_dir, num_imgs=None):
-        test_sampler = StratifiedSampler(self.cfg, intrinsics["img_width"], intrinsics["img_height"], intrinsics["f_x"], self.logger)
-        test_renderer = QuadratureIntegrator(self.logger, test_sampler, self.encoder_dict)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir, exist_ok=True)
 
+        test_sampler = StratifiedSampler(self.cfg, intrinsics["img_width"], intrinsics["img_height"], intrinsics["f_x"], self.logger, self.device)
+        test_renderer = QuadratureIntegrator(self.logger, test_sampler, self.encoder_dict, self.device)
+
+        img_height, img_width = img_res
+        num_pixels = img_height * img_width
+        batch = num_pixels // self.cfg.sampler.num_pixels
+        target_pixel_index = torch.arange(0, img_height * img_width)
+
+        self.logger.info(f"Rendering {extrinsics.shape[0]} images")
         with torch.no_grad():
             for pose_idx, pose in tqdm(enumerate(extrinsics)):
                 if num_imgs is not None:
                     if pose_idx >= num_imgs:
                         break
+                
+                xyz_coarse, ray_d_coarse, delta_coarse = test_sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, target_pixels=target_pixel_index)
+                rgb, weight_coarse, _, _ = test_renderer.render_rays(xyz_coarse, ray_d_coarse, delta_coarse, self.model_coarse, batch=batch)
 
-            img_height, img_width = img_res
-            
-            xyz_coarse, ray_d_coarse, delta_coarse = test_sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse)
-            _, weight_coarse, _, _ = test_renderer.render_rays(xyz_coarse, ray_d_coarse, delta_coarse, self.model_coarse)
+                if self.cfg.sampler.hierarchial_sampling:
+                    xyz_refine, ray_d_refine, delta_refine = test_sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling, target_pixel_index)
+                    rgb, _, _, _ = test_renderer.render_rays(xyz_refine, ray_d_refine, delta_refine, self.model_refine, batch=batch)
 
-            if self.cfg.sampler.hierarchial_sampling:
-                xyz_refine, ray_d_refine, delta_refine = test_sampler.sample_rays(pose, (self.cfg.rendering.t_near, self.cfg.rendering.t_far), self.cfg.sampler.num_samples_coarse, self.cfg.sampler.num_samples_refine, weight_coarse, self.cfg.sampler.hierarchial_sampling)
-                rgb, _, _, _ = test_renderer.render_rays(xyz_refine, ray_d_refine, delta_refine, self.model_refine)
+                pixel_pred = rgb.reshape(img_height, img_width, -1)
+                pixel_pred = pixel_pred.permute(2, 0, 1)
 
-            pixel_pred = rgb.reshape(img_height, img_width, -1)
-            pixel_pred = pixel_pred.permute(2, 0, 1)
+                # save the image
+                torchvision.utils.save_image(
+                    pixel_pred,
+                    os.path.join(save_dir, f"{str(pose_idx).zfill(5)}.png"),
+                )
 
-            # save the image
-            torchvision.utils.save_image(
-                pixel_pred,
-                os.path.join(save_dir, f"{str(pose_idx).zfill(5)}.png"),
-            )
+                self.logger.info(f"Image {pose_idx+1} has been saved in {save_dir}")
 
 
     def _save_ckpt(self, epoch):
-        if os.path.exists(self.ckpt_dir):
-            self.logger.error("Checkpoint directory is not created. Skipping process.", self.ckpt_dir)
-
         ckpt_file = os.path.join(self.ckpt_dir, f"ckpt_{str(epoch).zfill(6)}.pth")
 
         ckpt = {
             "epoch": epoch,
         }
 
-        ckpt["coarse_model"] = self.model_coarse.radiance_field.state_dict()
+        ckpt["coarse_model"] = self.model_coarse.state_dict()
         if self.model_refine is not None:
-            ckpt["refine_model"] = self.model_refine.radiance_field.state_dict()
+            ckpt["refine_model"] = self.model_refine.state_dict()
 
         if self.optimizer is not None:
             ckpt["optimizer_state_dict"] = self.optimizer.state_dict()
@@ -274,7 +281,7 @@ class Master():
         epoch = ckpt["epoch"]
 
         # load scene(s)
-        self.model_coarse.load_state_dict()(ckpt["coarse_model"]).to(torch.cuda.current_device())
+        self.model_coarse.load_state_dict(ckpt["coarse_model"]).to(torch.cuda.current_device())
         if self.model_refine is not None:
             self.model_refine.load_state_dict(ckpt["refine_model"]).to(torch.cuda.current_device())
 
